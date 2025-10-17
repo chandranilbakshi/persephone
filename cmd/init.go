@@ -17,7 +17,7 @@ var initCmd = &cobra.Command{
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
-		fmt.Println("Initialized empty Persephone repository")
+		fmt.Println("Initialized empty repository")
 	},
 }
 
