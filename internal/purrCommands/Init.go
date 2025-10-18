@@ -43,5 +43,13 @@ func InitPurrDirectories(basePath string) error {
 		}
 	}
 
+	// Create index file
+	indexPath := filepath.Join(purrDir, "index")
+	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+		if err := os.WriteFile(indexPath, []byte{}, 0644); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

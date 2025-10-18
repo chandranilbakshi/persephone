@@ -1,0 +1,21 @@
+package utils
+
+import "time"
+
+type IndexEntry struct {
+	// Stat cache (for fast change detection)
+	Ctime time.Time // Change time
+	Mtime time.Time // Modification time
+	Dev   uint32    // Device ID
+	Ino   uint32    // Inode number
+	Mode  uint32    // File permissions
+	Uid   uint32    // User ID
+	Gid   uint32    // Group ID
+	Size  uint32    // File size in bytes
+	// Content identification
+	Sha1 [20]byte // SHA-1 hash of content
+	// Flags
+	Stage uint16 // 0=normal, 1-3=conflict stages
+	// Path
+	Path string // Relative path from repo root
+}
