@@ -41,7 +41,7 @@ Persephone aims to explore how Git could be rebuilt from scratch using Go, focus
 - **Language:** Go 1.21+
 - **Hashing:** `crypto/sha1`
 - **DB:** BadgerDB/PebbleDB (future)
-- **CLI:** Cobra/Bubble Tea (future)
+- **CLI:** Cobra
 - **Concurrency:** goroutines, channels, mutexes
 - **Serialization:** JSON, binary
 
