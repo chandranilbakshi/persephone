@@ -3,6 +3,7 @@ package purrCommands
 import (
 	"Persephone/internal/utils"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -40,26 +41,87 @@ func AddPurrFiles(arg ...string) error {
 }
 
 // Called by func AddPurrFiles() when User passed `purr add .` (all files)
-func addAllPurrFiles(path string) {
-	numWorkers := runtime.NumCPU() * 5 // Limit concurrent workers
+func addAllPurrFiles(path string) error {
+	// Load all index entries from .purr/index file to IndexEntries
+	IndexEntries, _ := utils.ReadIndex(filepath.Join(path, ".purr", "index"))
+
+	// Create a map for faster lookups (path -> entry)
+	indexMap := make(map[string]*utils.IndexEntry)
+	for i := range IndexEntries {
+		indexMap[IndexEntries[i].Path] = &IndexEntries[i]
+	}
+
+	// Use up to 5× CPU cores as worker limit
+	numWorkers := runtime.NumCPU() * 5
 	semaphore := make(chan struct{}, numWorkers)
 	var wg sync.WaitGroup
+	var mu sync.Mutex
 
 	utils.WalkAndAddFiles(path, func(filePath string) error {
 		wg.Add(1)
-		go func(p string) {
+		go func(tempPath string) {
 			defer wg.Done()
-
 			semaphore <- struct{}{}        // Acquire slot (blocks if at limit)
 			defer func() { <-semaphore }() // Release slot when done
 
-			utils.WriteBlobWithSHA(filePath)
-			// Your file processing logic here
+			// Getting file Info
+			fileInfo, err := os.Stat(tempPath)
+			if err != nil {
+				log.Printf("failed to stat %s: %v", tempPath, err)
+				return
+			}
+
+			// Get relative path from repo root
+			relPath, err := filepath.Rel(path, tempPath)
+			if err != nil {
+				log.Printf("failed to get relative path for %s: %v", tempPath, err)
+				return
+			}
+
+			// Check if file exists in index
+			existingEntry, exists := indexMap[relPath]
+			if exists {
+				if fileInfo.ModTime().Equal(existingEntry.Mtime) {
+					return
+				}
+			}
+
+			// File is new or modified - write blob
+			hash, err := utils.WriteBlobWithSHA(tempPath)
+			if err != nil {
+				log.Printf("failed to write blob with SHA for %s: %v", tempPath, err)
+				return
+			}
+
+			// Create new entry with all fields populated
+			newEntry := utils.PopulateAllIndexField(fileInfo, relPath)
+			newEntry.Sha1 = hash
+
+			// Update map with lock
+			mu.Lock()
+			indexMap[relPath] = &newEntry
+			mu.Unlock()
+
 		}(filePath)
 		return nil
 	})
+
 	// Wait for all goroutines to finish
 	wg.Wait()
+
+	// Convert map to slice after all updates are complete
+	var updatedEntries []utils.IndexEntry
+	for _, entry := range indexMap {
+		updatedEntries = append(updatedEntries, *entry)
+	}
+
+	// Write updated index to disk
+	indexPath := filepath.Join(path, ".purr", "index")
+	if err := utils.WriteIndex(indexPath, updatedEntries); err != nil {
+		return fmt.Errorf("failed to write index: %w", err)
+	}
+
+	return nil
 }
 
 // Called by func AddPurrFiles() when User passed `purr add file1 ...` (specific files)

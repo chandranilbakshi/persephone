@@ -1,6 +1,8 @@
 package purrCommands
 
 import (
+	"bytes"
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -23,30 +25,37 @@ func InitPurrDirectories(basePath string) error {
 		}
 	}
 
-	// Set hidden attribute on Windows
+	// Set hidden attribute on Windows (only if not already hidden)
 	if runtime.GOOS == "windows" {
 		purrDirPtr, err := syscall.UTF16PtrFromString(purrDir)
 		if err != nil {
 			return err
 		}
 
-		// Get current attributes
 		attrs, err := syscall.GetFileAttributes(purrDirPtr)
 		if err != nil {
 			return err
 		}
 
-		// Add hidden attribute (FILE_ATTRIBUTE_HIDDEN = 0x2)
-		err = syscall.SetFileAttributes(purrDirPtr, attrs|syscall.FILE_ATTRIBUTE_HIDDEN)
-		if err != nil {
-			return err
+		// Only set if not already hidden
+		if attrs&syscall.FILE_ATTRIBUTE_HIDDEN == 0 {
+			err = syscall.SetFileAttributes(purrDirPtr, attrs|syscall.FILE_ATTRIBUTE_HIDDEN)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
-	// Create index file
+	// Create index file with valid header if it doesn't exist
 	indexPath := filepath.Join(purrDir, "index")
 	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
-		if err := os.WriteFile(indexPath, []byte{}, 0644); err != nil {
+		// Write valid 12-byte header: "DIRC" + version 2 + 0 entries
+		var buf bytes.Buffer
+		buf.WriteString("DIRC")                         // Magic (4 bytes)
+		binary.Write(&buf, binary.BigEndian, uint32(2)) // Version (4 bytes)
+		binary.Write(&buf, binary.BigEndian, uint32(0)) // Entry count (4 bytes)
+
+		if err := os.WriteFile(indexPath, buf.Bytes(), 0644); err != nil {
 			return err
 		}
 	}
