@@ -11,6 +11,8 @@ Persephone aims to explore how Git could be rebuilt from scratch using Go, focus
 - Modern hardware and workflows (large repos, SSDs, Windows, CI/CD) expose inefficiencies in Git's original design.
 - Go offers concurrency primitives and cross-platform support ideal for tackling these issues.
 
+**For details on currently implemented commands**, see the [`Purr Commands Guide`](./Purr%20Commands%20Guide) which documents all available CLI commands and their usage.
+
 ## Technical Goals (Future Work)
 - **Concurrent file/object storage:** Use goroutines for parallel scanning, hashing, and I/O.
 - **Content-addressable DB:** Replace `.git/objects` with a key-value store (Badger/Pebble DB).

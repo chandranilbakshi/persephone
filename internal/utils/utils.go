@@ -35,7 +35,6 @@ func ExistsAndIsDirectory(path string) (bool, error) {
 }
 
 /*
-Old Sequencial Search (Kept for Notalgia)
 WalkDir(root, fn) walks through all files and directories under root.
 It calls fn(path, d, err) for each entry, including root itself.
 The callback can handle each item or skip directories (e.g. return filepath.SkipDir).

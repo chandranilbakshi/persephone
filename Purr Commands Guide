@@ -4,22 +4,38 @@ A Git-like version control system written in Go.
 
 ---
 
-## Available Commands
+## Command Reference
+
+### Main Commands
+
+1. `purr init`
+   - Initialize a new Purr repository
+
+2. `purr add .`
+   - Stage all files in the current directory
+
+3. `purr add <file1> <file2> ...`
+   - Stage specific files by name
+
+4. `purr ls-files`
+   - List all files currently staged in the index
+   - Subcommands/Flags:
+     - `--debug`, `-d` : Show detailed metadata for each file
+
+---
+
+## Command Details
 
 ### 1. `purr init`
-Initialize a new Purr repository in the current directory.
-
 **Usage:**
 ```bash
 purr init
 ```
-
-**What it does:**
+**Description:**
 - Creates `.purr` directory structure
 - Sets up `objects/`, `refs/heads/`, and `logs/` directories
 - Creates an empty index file with valid header
 - On Windows: sets the `.purr` folder as hidden
-
 **Example:**
 ```bash
 D:\MyProject> purr init
@@ -29,27 +45,22 @@ Initialized empty repository
 ---
 
 ### 2. `purr add .`
-Stage all files in the current directory for commit.
-
 **Usage:**
 ```bash
 purr add .
 ```
-
-**What it does:**
+**Description:**
 - Recursively walks through all files in the working directory
 - Skips hidden files and directories (starting with `.`)
 - Creates blob objects for each file with SHA-1 hashing
 - Updates the index with file metadata (SHA-1, timestamps, permissions)
 - Only updates files that are new or modified (checks modification time)
 - Uses concurrent processing (goroutines) for better performance
-
 **Example:**
 ```bash
 D:\MyProject> purr add .
 Files added to index
 ```
-
 **Technical Details:**
 - Stores blobs in `.purr/objects/` with Git-compatible format
 - Uses zlib compression for blob storage
@@ -58,9 +69,31 @@ Files added to index
 
 ---
 
-### 3. `purr ls-files`
-List all files currently staged in the index.
+### 3. `purr add <file1> <file2> ...`
+**Usage:**
+```bash
+purr add README.md main.go
+```
+**Description:**
+- Stages only the files explicitly listed
+- Skips hidden files and directories (starting with `.`)
+- Creates blob objects for each file with SHA-1 hashing
+- Updates the index with file metadata (SHA-1, timestamps, permissions)
+- Only updates files that are new or modified (checks modification time)
+**Example:**
+```bash
+D:\MyProject> purr add README.md main.go
+Files added to index
+```
+**Technical Details:**
+- Stores blobs in `.purr/objects/` with Git-compatible format
+- Uses zlib compression for blob storage
+- Index tracks: SHA-1, file mode, size, modification time, and more
+- Supports cross-platform metadata (Windows, Linux, macOS)
 
+---
+
+### 4. `purr ls-files`
 **Usage:**
 ```bash
 # Simple mode (default)
@@ -70,11 +103,9 @@ purr ls-files
 purr ls-files --debug
 purr ls-files -d
 ```
-
-**What it does:**
+**Description:**
 - Reads the `.purr/index` file
 - Displays staged files with their SHA-1 hash and mode
-
 **Simple Mode Output:**
 ```bash
 Found 3 file(s) in index:
@@ -103,7 +134,6 @@ Found 3 file(s) in index:
   Path: main.go
   ...
 ```
-
 **Flags:**
 - `-d, --debug` : Show detailed metadata for each file
 
@@ -118,10 +148,13 @@ purr init
 # 2. Stage all files
 purr add .
 
-# 3. View staged files
+# 3. Stage specific files
+purr add README.md main.go
+
+# 4. View staged files
 purr ls-files
 
-# 4. View detailed file information
+# 5. View detailed file information
 purr ls-files --debug
 ```
 
@@ -171,7 +204,6 @@ purr ls-files --debug
 
 ## Coming Soon
 
-- `purr add <file1> <file2> ...` - Stage specific files
 - `.purrignore` - Ignore patterns support
 - `purr commit` - Create commits
 - `purr status` - Show working directory status
