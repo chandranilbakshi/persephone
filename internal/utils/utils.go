@@ -202,7 +202,9 @@ func ReadIndex(indexPath string) ([]IndexEntry, error) {
 		entry.Path = string(pathBytes)
 
 		// Skip padding to align next entry to 8 bytes
-		paddingLen := (8 - ((62 + pathLen) % 8)) % 8
+		// Total entry size = 62 (metadata) + 2 (path length) + pathLen (path data)
+		entrySize := 62 + 2 + pathLen
+		paddingLen := (8 - (entrySize % 8)) % 8
 		if _, err := buf.Seek(int64(paddingLen), io.SeekCurrent); err != nil {
 			return nil, fmt.Errorf("failed to skip padding: %w", err)
 		}
