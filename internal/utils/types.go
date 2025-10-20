@@ -19,3 +19,9 @@ type IndexEntry struct {
 	// Path
 	Path string // Relative path from repo root
 }
+
+// PurrConfig stores user configuration settings
+type PurrConfig struct {
+	UserName  string `json:"user_name"`
+	UserEmail string `json:"user_email"`
+}
