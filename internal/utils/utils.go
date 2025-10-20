@@ -96,12 +96,24 @@ func WriteBlobWithSHA(filePath string) ([20]byte, error) {
 	w.Write(blob)
 	w.Close()
 
-	dir := filepath.Join(".purr", "objects", hashStr[:2]) // making directory with first two Char
-	os.MkdirAll(dir, 0755)
-	objectPath := filepath.Join(dir, hashStr[2:]) // adding rest Sha1 key inside that directory
-	os.WriteFile(objectPath, compressed.Bytes(), 0644)
+	// Call helper to store object
+	err = storeObject(hashStr, compressed.Bytes())
+	if err != nil {
+		return [20]byte{}, err
+	}
 
 	return hash, nil
+}
+
+// storeObject handles creating directories and writing compressed blob
+func storeObject(hashStr string, data []byte) error {
+	dir := filepath.Join(".purr", "objects", hashStr[:2])
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	objectPath := filepath.Join(dir, hashStr[2:])
+	return os.WriteFile(objectPath, data, 0644)
 }
 
 /*
