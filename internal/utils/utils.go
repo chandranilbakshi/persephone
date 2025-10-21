@@ -5,6 +5,7 @@ import (
 	"compress/zlib"
 	"crypto/sha1"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -314,4 +316,26 @@ func WriteConfig(config *PurrConfig) error {
 	}
 
 	return nil
+}
+
+func computeTreeSHA1(entries []*Entries) (string, error) {
+	// Build tree data: each entry is "mode filename\x00" + 20-byte SHA1
+	var treeData []byte
+	for _, entry := range entries {
+		// entry.Name already contains "mode filename\x00"
+		treeData = append(treeData, []byte(entry.Name)...)
+		// Decode SHA1 hex string to binary (20 bytes)
+		sha1Bytes, _ := hex.DecodeString(entry.Sha1Hex)
+		treeData = append(treeData, sha1Bytes...)
+	}
+
+	actualSize := len(treeData)
+	fmt.Printf("Actual size: %d\n", actualSize)
+
+	// Create tree object: "tree <size>\x00" + treeData
+	treeObject := append([]byte("tree "+strconv.Itoa(actualSize)+"\x00"), treeData...)
+	treeSha1 := sha1.Sum(treeObject)
+	treeSha1Hex := hex.EncodeToString(treeSha1[:])
+
+	return treeSha1Hex, nil
 }

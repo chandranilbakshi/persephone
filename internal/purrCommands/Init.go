@@ -60,5 +60,15 @@ func InitPurrDirectories(basePath string) error {
 		}
 	}
 
+	// Create HEAD file if it doesn't exist
+	headPath := filepath.Join(purrDir, "HEAD")
+	if _, err := os.Stat(headPath); os.IsNotExist(err) {
+		// Point to refs/heads/main by default
+		headContent := "ref: refs/heads/main\n"
+		if err := os.WriteFile(headPath, []byte(headContent), 0644); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

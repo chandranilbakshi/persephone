@@ -25,3 +25,8 @@ type PurrConfig struct {
 	UserName  string `json:"user_name"`
 	UserEmail string `json:"user_email"`
 }
+
+type Entries struct {
+	Name    string
+	Sha1Hex string
+}
