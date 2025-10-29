@@ -26,7 +26,11 @@ type PurrConfig struct {
 	UserEmail string `json:"user_email"`
 }
 
-type Entries struct {
-	Name    string
-	Sha1Hex string
+// Clean Approach for func ComputeTreeSHA1()
+type TreeEntries struct {
+	Name     string
+	Filename string
+	Sha1Hex  string // hex string
+	IsTree   bool   // for sorting (directory if true)
+	Mode     string // file mode (e.g., "100644", "100755", "040000")
 }
