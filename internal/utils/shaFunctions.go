@@ -37,7 +37,7 @@ func WriteBlobWithSHA(filePath string) ([20]byte, error) {
 	w.Close()
 
 	// Call helper to store object
-	err = storeObject(hashStr, compressed.Bytes())
+	err = StoreObject(hashStr, compressed.Bytes())
 	if err != nil {
 		return [20]byte{}, err
 	}

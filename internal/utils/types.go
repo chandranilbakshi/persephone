@@ -20,7 +20,7 @@ type IndexEntry struct {
 	Path string // Relative path from repo root
 }
 
-// PurrConfig stores user configuration settings
+// PurrConfig stores user configuration settings (Author)
 type PurrConfig struct {
 	UserName  string `json:"user_name"`
 	UserEmail string `json:"user_email"`
@@ -33,4 +33,18 @@ type TreeEntries struct {
 	Sha1Hex  string // hex string
 	IsTree   bool   // for sorting (directory if true)
 	Mode     string // file mode (e.g., "100644", "100755", "040000")
+}
+
+//
+type Index struct {
+	Entries []IndexEntry
+}
+
+// CommitObj represents a commit object in the repository
+type CommitObj struct {
+	TreeHash   string     `json:"tree"`      // Hash of the tree object
+	ParentHash string     `json:"parent"`    // Hash of parent commit(s)
+	Author     PurrConfig `json:"author"`    // Author information
+	Committer  PurrConfig `json:"committer"` // Committer information (usually same as author)
+	Message    string     `json:"message"`   // Commit message
 }

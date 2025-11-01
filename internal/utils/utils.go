@@ -63,8 +63,8 @@ func WalkAndAddFiles(root string, handleFile func(string) error) error {
 	})
 }
 
-// storeObject handles creating directories and writing compressed blob
-func storeObject(hashStr string, data []byte) error {
+// StoreObject handles creating directories and writing compressed blob
+func StoreObject(hashStr string, data []byte) error {
 	dir := filepath.Join(".purr", "objects", hashStr[:2])
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
@@ -93,4 +93,56 @@ func PopulateAllIndexField(fileInfo os.FileInfo, relPath string) IndexEntry {
 		Stage: 0,
 		Path:  relPath,
 	}
+}
+
+// GetHEADCommit reads the current HEAD commit hash from the .purr directory.
+// It handles both symbolic references (e.g., "ref: refs/heads/main") and detached HEAD states (direct commit hash).
+// Returns the commit hash as a string, or an error if reading fails.
+func GetHEADCommit() (string, error) {
+	headPath := filepath.Join(".purr", "HEAD")
+	content, err := os.ReadFile(headPath)
+	if err != nil {
+		return "", err
+	}
+	ref := strings.TrimSpace(string(content)) //to clean \n ( Empty spaces)
+
+	// Case1: HEAD --> ref: refs/heads/main or similar
+	if strings.HasPrefix(ref, "ref:") {
+		branchRef := strings.TrimSpace(strings.TrimPrefix(ref, "ref:"))
+		branchPath := filepath.Join(".purr", branchRef)
+		hash, err := os.ReadFile(branchPath)
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(string(hash)), nil
+	}
+	// Case2: Detached HEAD (direct hash)
+	return ref, nil
+}
+
+// UpdateHEAD updates the current HEAD reference to point to the specified commit hash.
+// If HEAD points to a branch (i.e., is a symbolic reference), it updates the branch file
+// with the new commit hash. If HEAD is in a detached state, it updates the HEAD file directly.
+// Returns an error if reading or writing the reference files fails.
+//
+// commitHash: The hash of the commit to update HEAD to.
+// error: An error if the operation fails, otherwise nil.
+func UpdateHEAD(commitHash string) error {
+	headPath := filepath.Join(".purr", "HEAD")
+	content, err := os.ReadFile(headPath)
+	if err != nil {
+		return err
+	}
+
+	ref := strings.TrimSpace(string(content))
+
+	// Case1: If HEAD points to a branch, update the branch file
+	if strings.HasPrefix(ref, "ref:") {
+		branchRef := strings.TrimSpace(strings.TrimPrefix(ref, "ref:"))
+		branchPath := filepath.Join(".purr", branchRef)
+		return os.WriteFile(branchPath, []byte(commitHash+"\n"), 0644)
+	}
+
+	// Case2: Detached HEAD - update HEAD directly
+	return os.WriteFile(headPath, []byte(commitHash+"\n"), 0644)
 }

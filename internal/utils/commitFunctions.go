@@ -2,8 +2,11 @@ package utils
 
 import (
 	"bytes"
+	"compress/zlib"
+	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -67,65 +70,76 @@ func BuildTreeObject(entries []*TreeEntries) ([]byte, error) {
 	return treeObj, nil
 }
 
-func BuildCommitObject(treeSHA1, parentSHA1, authorName, authorEmail, message string) ([]byte, error) {
-	// Validate inputs
-	if treeSHA1 == "" {
-		return nil, fmt.Errorf("tree SHA-1 is required")
+// ComputeCommitSHA1 computes the SHA-1 of a Git-compatible commit object.
+// Similar to ComputeTreeSHA1, but for commit objects.
+func ComputeCommitSHA1(commit *CommitObj) (string, error) {
+	commitObj, err := BuildCommitObject(commit)
+	if err != nil {
+		return "", err
 	}
-	if len(treeSHA1) != 40 {
-		return nil, fmt.Errorf("invalid tree SHA-1 length: got %d, want 40", len(treeSHA1))
+
+	sha := sha1.Sum(commitObj)
+	return fmt.Sprintf("%x", sha[:]), nil
+}
+
+// BuildCommitObject creates a Git-compatible commit object from a CommitObj struct.
+// Format:
+// commit {size}\0tree {tree-hash}\nparent {parent-hash}\nauthor {name} <{email}> {timestamp} {timezone}\ncommitter {name} <{email}> {timestamp} {timezone}\n\n{message}\n
+func BuildCommitObject(commit *CommitObj) ([]byte, error) {
+	// Validation
+	if commit.TreeHash == "" {
+		return nil, fmt.Errorf("tree hash is required")
 	}
-	if authorName == "" || authorEmail == "" {
-		return nil, fmt.Errorf("author name and email are required")
-	}
-	if message == "" {
+	if commit.Message == "" {
 		return nil, fmt.Errorf("commit message is required")
+	}
+	if commit.Author.UserName == "" || commit.Author.UserEmail == "" {
+		return nil, fmt.Errorf("author name and email are required")
 	}
 
 	// Build commit content
-	var commitContent bytes.Buffer
+	var content strings.Builder
 
 	// Tree line
-	commitContent.WriteString(fmt.Sprintf("tree %s\n", treeSHA1))
+	content.WriteString(fmt.Sprintf("tree %s\n", commit.TreeHash))
 
-	// Parent line (optional for first commit)
-	if parentSHA1 != "" {
-		if len(parentSHA1) != 40 {
-			return nil, fmt.Errorf("invalid parent SHA-1 length: got %d, want 40", len(parentSHA1))
-		}
-		commitContent.WriteString(fmt.Sprintf("parent %s\n", parentSHA1))
+	// Parent line (if exists)
+	if commit.ParentHash != "" {
+		content.WriteString(fmt.Sprintf("parent %s\n", commit.ParentHash))
 	}
 
-	// Timestamp and timezone
+	// Timestamp (current time)
 	timestamp := time.Now().Unix()
-	_, offset := time.Now().Zone()
-	timezone := fmt.Sprintf("%+03d%02d", offset/3600, (offset%3600)/60)
+	timezone := "+0000" // UTC
 
 	// Author line
-	authorLine := fmt.Sprintf("author %s <%s> %d %s\n",
-		authorName, authorEmail, timestamp, timezone)
-	commitContent.WriteString(authorLine)
+	content.WriteString(fmt.Sprintf("author %s <%s> %d %s\n",
+		commit.Author.UserName,
+		commit.Author.UserEmail,
+		timestamp,
+		timezone))
 
-	// Committer line (same as author for simplicity)
-	committerLine := fmt.Sprintf("committer %s <%s> %d %s\n",
-		authorName, authorEmail, timestamp, timezone)
-	commitContent.WriteString(committerLine)
+	// Committer line
+	content.WriteString(fmt.Sprintf("committer %s <%s> %d %s\n",
+		commit.Committer.UserName,
+		commit.Committer.UserEmail,
+		timestamp,
+		timezone))
 
 	// Empty line before message
-	commitContent.WriteString("\n")
+	content.WriteString("\n")
 
 	// Commit message
-	commitContent.WriteString(message)
-
-	// Ensure message ends with newline
-	if !strings.HasSuffix(message, "\n") {
-		commitContent.WriteString("\n")
+	content.WriteString(commit.Message)
+	if !strings.HasSuffix(commit.Message, "\n") {
+		content.WriteString("\n")
 	}
 
+	commitContent := []byte(content.String())
+
 	// Create commit object with header
-	content := commitContent.Bytes()
-	header := fmt.Sprintf("commit %d\x00", len(content))
-	commitObj := append([]byte(header), content...)
+	header := fmt.Sprintf("commit %d\x00", len(commitContent))
+	commitObj := append([]byte(header), commitContent...)
 
 	return commitObj, nil
 }
@@ -194,4 +208,70 @@ func UpdateBranchRef(repoPath, commitSHA1 string) error {
 	}
 
 	return nil
+}
+
+// CheckConfigFile verifies that the user's name and email are set in the configuration file.
+// It returns an error if either user.name or user.email is missing.
+func CheckConfigFile() (string, string, error) {
+	// Read config to get user.name and user.email
+	config, err := ReadConfig()
+	if err != nil {
+		fmt.Printf("Error reading config: %v\n", err)
+		return "", "", err
+	}
+
+	// Check if user.name is set
+	if config.UserName == "" {
+		fmt.Println("Error: user.name is not set.")
+		fmt.Println("Please configure it using: purr config user.name \"Your Name\"")
+		return "", "", err
+	}
+
+	// Check if user.email is set
+	if config.UserEmail == "" {
+		fmt.Println("Error: user.email is not set.")
+		fmt.Println("Please configure it using: purr config user.email \"your.email@example.com\"")
+		return "", "", err
+	}
+	return config.UserName, config.UserEmail, nil
+}
+
+// GetCommitTreeHash reads a commit object by its hash and extracts the tree hash it references.
+// The commit object is expected to be stored in .purr/objects/{first2}/{rest} (zlib-compressed).
+// It decompresses the object, skips the header ("commit <size>\0"), and parses the first line
+// to find the "tree <hash>" entry. Returns the tree hash string, or an error if not found or invalid.
+func GetCommitTreeHash(commitHash string) (string, error) {
+	objPath := filepath.Join(".purr", "objects", commitHash[:2], commitHash[2:])
+	compressed, err := os.ReadFile(objPath)
+	if err != nil {
+		return "", err
+	}
+
+	r, err := zlib.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+
+	content, err := io.ReadAll(r)
+	if err != nil {
+		return "", err
+	}
+
+	// Skip header: "commit <size>\0"
+	nullIndex := bytes.IndexByte(content, 0)
+	if nullIndex == -1 {
+		return "", fmt.Errorf("invalid commit object: no null byte")
+	}
+
+	// Parse content after null byte
+	body := content[nullIndex+1:]
+	lines := strings.Split(string(body), "\n")
+
+	if len(lines) > 0 && strings.HasPrefix(lines[0], "tree ") {
+		treeHash := strings.TrimPrefix(lines[0], "tree ")
+		return strings.TrimSpace(treeHash), nil
+	}
+
+	return "", fmt.Errorf("invalid commit object: no tree line")
 }

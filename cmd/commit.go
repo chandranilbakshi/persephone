@@ -18,18 +18,9 @@ var commitCmd = &cobra.Command{
 			return
 		}
 
-		// Check if user.name and user.email are configured
-		userName, err := utils.ReadExistingConfig("user.name")
-		if err != nil || userName == "" {
-			fmt.Println("Error: user.name is not set.")
-			fmt.Println("Please configure it using: purr config user.name \"Your Name\"")
-			return
-		}
-
-		userEmail, err := purrCommands.ReadExistingConfig("user.email")
-		if err != nil || userEmail == "" {
-			fmt.Println("Error: user.email is not set.")
-			fmt.Println("Please configure it using: purr config user.email \"your.email@example.com\"")
+		userName, userEmail, err := utils.CheckConfigFile()
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
 			return
 		}
 
